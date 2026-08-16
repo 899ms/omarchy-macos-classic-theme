@@ -17,6 +17,8 @@ VARIANTS = {
         "foreground": "#000000",
         "accent": "#0060de",
         "chromium": "249,249,249",
+        "vscode": "macOS Classic",
+        "zed": "macOS Classic Light",
     },
     "macos-classic-dark": {
         "mode": "dark",
@@ -24,6 +26,8 @@ VARIANTS = {
         "foreground": "#DEDEDE",
         "accent": "#077CFD",
         "chromium": "19,19,19",
+        "vscode": "macOS Classic Dark v2",
+        "zed": "macOS Classic Dark",
     },
 }
 
@@ -103,6 +107,7 @@ class IntegrationTests(unittest.TestCase):
         "icons.theme",
         "neovim.lua",
         "vscode.json",
+        "zed.json",
     }
 
     def test_all_integration_files_exist(self):
@@ -147,12 +152,21 @@ class IntegrationTests(unittest.TestCase):
                 self.assertEqual(required, present)
 
     def test_editor_metadata_is_valid(self):
-        for name in VARIANTS:
+        for name, expected in VARIANTS.items():
             with self.subTest(name=name):
                 metadata = json.loads((ROOT / name / "vscode.json").read_text())
                 self.assertEqual({"name", "extension"}, set(metadata))
-                self.assertTrue(metadata["name"])
-                self.assertIn(".", metadata["extension"])
+                self.assertEqual(expected["vscode"], metadata["name"])
+                self.assertEqual("huacnlee.theme-macos-classic", metadata["extension"])
+
+                zed = json.loads((ROOT / name / "zed.json").read_text())
+                self.assertEqual(
+                    {
+                        "extension": "macos-classic",
+                        "name": expected["zed"],
+                    },
+                    zed,
+                )
 
     @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
     def test_lua_files_parse(self):
@@ -165,6 +179,26 @@ class IntegrationTests(unittest.TestCase):
                         text=True,
                     )
                     self.assertEqual(0, result.returncode, result.stderr)
+
+
+class AssetTests(unittest.TestCase):
+    def png_dimensions(self, path):
+        data = path.read_bytes()
+        self.assertEqual(b"\x89PNG\r\n\x1a\n", data[:8])
+        self.assertEqual(b"IHDR", data[12:16])
+        return struct.unpack(">II", data[16:24])
+
+    def test_assets_have_expected_png_dimensions(self):
+        for name in VARIANTS:
+            expected = {
+                ROOT / name / "backgrounds" / f"{name}.png": (1920, 1080),
+                ROOT / name / "unlock.png": (1920, 1080),
+                ROOT / name / "preview.png": (640, 360),
+                ROOT / name / "preview-unlock.png": (640, 360),
+            }
+            for path, dimensions in expected.items():
+                with self.subTest(path=path):
+                    self.assertEqual(dimensions, self.png_dimensions(path))
 
 
 if __name__ == "__main__":
