@@ -5,29 +5,42 @@ Two Omarchy themes based on Jason Lee's macOS Classic palettes:
 - `macos-classic-light` — off-white surfaces, black text, and classic blue accents
 - `macos-classic-dark` — near-black surfaces, cool gray text, and bright blue accents
 
-The repository targets the current `colors.toml`-based Omarchy theme format. It includes matching Hyprland, btop, Chromium, icon, Neovim, VS Code, and Zed metadata plus simple palette-based backgrounds.
+Includes matching light and dark palettes, application colors, and simple backgrounds.
 
 ## Install
 
-Clone the repository and run:
+### Quick install
+
+Copy and run this block to install or update both variants:
 
 ```bash
+(
+  install_tmp=$(mktemp -d)
+  trap 'rm -rf "$install_tmp"' EXIT
+  git clone --depth 1 https://github.com/huacnlee/omarchy-macos-classic-theme.git "$install_tmp/theme"
+  "$install_tmp/theme/install.sh"
+)
+```
+
+Then select a variant:
+
+```bash
+omarchy theme set macos-classic-light
+# or
+omarchy theme set macos-classic-dark
+```
+
+### Manual install
+
+Clone the repository and run its installer:
+
+```bash
+git clone https://github.com/huacnlee/omarchy-macos-classic-theme.git
+cd omarchy-macos-classic-theme
 ./install.sh
 ```
 
-This installs both variants under `~/.config/omarchy/themes/` without changing the active theme. Existing installations are preserved. To intentionally replace both:
-
-```bash
-./install.sh --replace
-```
-
-For a custom location or a temporary test:
-
-```bash
-./install.sh --destination /path/to/themes
-```
-
-You can also manually copy `macos-classic-light` and `macos-classic-dark` into `~/.config/omarchy/themes/`.
+This installs both variants under `~/.config/omarchy/themes/` without changing the active theme. Existing installations are updated automatically.
 
 ## Use
 
@@ -46,7 +59,7 @@ Monaco is proprietary and is not bundled here. After installing a licensed copy 
 omarchy font set Monaco
 ```
 
-The installer reports whether Fontconfig can find Monaco. Until it is installed, your existing Omarchy font remains unchanged.
+The installer reports whether Monaco is available. Until it is installed, your existing Omarchy font remains unchanged.
 
 ## Editors
 
@@ -74,31 +87,12 @@ Install the official [macOS Classic Zed extension](https://zed.dev/extensions/ma
 }
 ```
 
-Current Omarchy theme switching does not apply Zed metadata automatically; the included `zed.json` files record the correct upstream extension and variant names.
+Current Omarchy does not automatically switch Zed themes, so configure Zed once using the settings above.
 
-### Neovim
+## Credits
 
-There is no maintained native macOS Classic Neovim theme in the upstream family. The light and dark variants therefore use Catppuccin Latte and Mocha as dependable LazyVim fallbacks.
-
-## Palette and assets
-
-The palette is mapped from [`gpui-component`'s macOS Classic theme](https://github.com/longbridge/gpui-component), which credits [`huacnlee/zed-theme-macos-classic`](https://github.com/huacnlee/zed-theme-macos-classic). The warning-derived orange and brown roles and the light selection fill are the only added role colors.
-
-Backgrounds are intentionally restrained vertical tonal fields with a thin blue accent. Regenerate every PNG deterministically with:
-
-```bash
-python scripts/generate_assets.py
-```
-
-## Verify
-
-```bash
-bash -n install.sh
-python -m unittest -v tests/test_theme.py
-```
-
-The theme structure follows current stock Omarchy themes. The older [Ayu Dark Omarchy theme](https://github.com/fdidron/omarchy-ayu-dark-theme) was used as an additional packaging reference.
+Based on [`huacnlee/zed-theme-macos-classic`](https://github.com/huacnlee/zed-theme-macos-classic) and the matching [VS Code theme](https://marketplace.visualstudio.com/items?itemName=huacnlee.theme-macos-classic).
 
 ## License
 
-See [LICENSE](LICENSE). Upstream themes and editor extensions retain their respective licenses.
+See [LICENSE](LICENSE).
