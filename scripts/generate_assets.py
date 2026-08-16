@@ -14,8 +14,8 @@ THEMES = {
         "bottom": "#F9F9F9",
     },
     "macos-classic-dark": {
-        "top": "#202020",
-        "bottom": "#0B0B0B",
+        "top": "#1A1A1A",
+        "bottom": "#050505",
     },
 }
 
