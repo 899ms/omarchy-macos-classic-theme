@@ -12,12 +12,10 @@ THEMES = {
     "macos-classic-light": {
         "top": "#FFFFFF",
         "bottom": "#E9E9E9",
-        "accent": "#0060DE",
     },
     "macos-classic-dark": {
         "top": "#202020",
         "bottom": "#0B0B0B",
-        "accent": "#077CFD",
     },
 }
 
@@ -32,16 +30,12 @@ def chunk(kind, payload):
 
 
 def render_png(path, width, height, colors):
-    top, bottom, accent = (rgb(colors[key]) for key in ("top", "bottom", "accent"))
+    top, bottom = (rgb(colors[key]) for key in ("top", "bottom"))
     rows = []
-    accent_height = max(2, height // 180)
 
     for y in range(height):
-        if y < accent_height:
-            pixel = accent
-        else:
-            position = (y - accent_height) / max(1, height - accent_height - 1)
-            pixel = tuple(round(start + (end - start) * position) for start, end in zip(top, bottom))
+        position = y / max(1, height - 1)
+        pixel = tuple(round(start + (end - start) * position) for start, end in zip(top, bottom))
         rows.append(b"\x00" + bytes(pixel) * width)
 
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)

@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import tomllib
 import unittest
+import zlib
 from pathlib import Path
 
 
@@ -234,6 +235,21 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(b"IHDR", data[12:16])
         return struct.unpack(">II", data[16:24])
 
+    def png_top_left_rgb(self, path):
+        data = path.read_bytes()
+        offset = 8
+        compressed = []
+        while offset < len(data):
+            length = struct.unpack(">I", data[offset : offset + 4])[0]
+            kind = data[offset + 4 : offset + 8]
+            payload = data[offset + 8 : offset + 8 + length]
+            if kind == b"IDAT":
+                compressed.append(payload)
+            offset += 12 + length
+        first_row = zlib.decompress(b"".join(compressed))
+        self.assertEqual(0, first_row[0], "Generated PNG must use filter type 0")
+        return tuple(first_row[1:4])
+
     def test_assets_have_expected_png_dimensions(self):
         for name in VARIANTS:
             expected = {
@@ -245,6 +261,16 @@ class AssetTests(unittest.TestCase):
             for path, dimensions in expected.items():
                 with self.subTest(path=path):
                     self.assertEqual(dimensions, self.png_dimensions(path))
+
+    def test_wallpaper_starts_with_neutral_surface_not_blue_accent(self):
+        expected = {
+            "macos-classic-light": (255, 255, 255),
+            "macos-classic-dark": (32, 32, 32),
+        }
+        for name, top_rgb in expected.items():
+            with self.subTest(name=name):
+                path = ROOT / name / "backgrounds" / f"{name}.png"
+                self.assertEqual(top_rgb, self.png_top_left_rgb(path))
 
 
 class InstallerTests(unittest.TestCase):
