@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 THEMES = {
     "macos-classic-light": {
         "top": "#FFFFFF",
-        "bottom": "#E9E9E9",
+        "bottom": "#F9F9F9",
     },
     "macos-classic-dark": {
         "top": "#202020",

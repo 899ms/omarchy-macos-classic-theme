@@ -106,6 +106,14 @@ class PaletteTests(unittest.TestCase):
                 palette = load_palette(name)
                 self.assertGreaterEqual(contrast_ratio(palette["muted"], palette["background"]), 4.5)
 
+    def test_light_palette_uses_macos_classic_neutral_surface_hierarchy(self):
+        palette = load_palette("macos-classic-light")
+        self.assertEqual("#F9F9F9", palette["background"])
+        self.assertEqual("#F5F5F5", palette["lighter_background"])
+        self.assertEqual("#E9E9E9", palette["dark_background"])
+        self.assertEqual("#E0E0E0", palette["darker_background"])
+        self.assertEqual("#0060de", palette["accent"])
+
 
 class IntegrationTests(unittest.TestCase):
     REQUIRED_FILES = {
@@ -137,8 +145,21 @@ class IntegrationTests(unittest.TestCase):
                 content = (ROOT / name / "hyprland.lua").read_text()
                 border = "#" + content.split('rgb(', 1)[1].split(')', 1)[0]
                 palette = load_palette(name)
-                self.assertLess(relative_luminance(border), relative_luminance(palette["accent"]))
+                if name == "macos-classic-light":
+                    self.assertNotEqual(border.lower(), palette["accent"].lower())
+                else:
+                    self.assertLess(relative_luminance(border), relative_luminance(palette["accent"]))
                 self.assertIn("border_active = active_border_color", content)
+
+    def test_light_window_and_panel_borders_are_neutral(self):
+        content = (ROOT / "macos-classic-light" / "hyprland.lua").read_text()
+        self.assertIn('active_border_color = "rgb(d2d2d2)"', content.lower())
+
+        shell = tomllib.loads(
+            (ROOT / "macos-classic-light" / "shell.hyprland.toml").read_text()
+        )
+        self.assertEqual("#D2D2D2", shell["active-border"])
+        self.assertEqual("#D2D2D2", shell["active-border-foreground"])
 
     def test_btop_defines_all_required_theme_fields(self):
         required = {
@@ -213,7 +234,15 @@ class IntegrationTests(unittest.TestCase):
 
                 shell = tomllib.loads((home / ".local/state/omarchy/current/theme/shell.toml").read_text())
                 panel_border = shell["hyprland"]["active-border"]
-                self.assertLess(relative_luminance(panel_border), relative_luminance(expected["accent"]))
+                if name == "macos-classic-light":
+                    self.assertEqual("#D2D2D2", panel_border)
+                    self.assertEqual(
+                        "#D2D2D2", shell["hyprland"]["active-border-foreground"]
+                    )
+                else:
+                    self.assertLess(
+                        relative_luminance(panel_border), relative_luminance(expected["accent"])
+                    )
 
     @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
     def test_lua_files_parse(self):
@@ -235,7 +264,7 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(b"IHDR", data[12:16])
         return struct.unpack(">II", data[16:24])
 
-    def png_top_left_rgb(self, path):
+    def png_corner_rgb(self, path, bottom=False):
         data = path.read_bytes()
         offset = 8
         compressed = []
@@ -246,9 +275,12 @@ class AssetTests(unittest.TestCase):
             if kind == b"IDAT":
                 compressed.append(payload)
             offset += 12 + length
-        first_row = zlib.decompress(b"".join(compressed))
-        self.assertEqual(0, first_row[0], "Generated PNG must use filter type 0")
-        return tuple(first_row[1:4])
+        pixels = zlib.decompress(b"".join(compressed))
+        width, height = self.png_dimensions(path)
+        row_size = 1 + width * 3
+        row = pixels[(height - 1) * row_size :] if bottom else pixels
+        self.assertEqual(0, row[0], "Generated PNG must use filter type 0")
+        return tuple(row[1:4])
 
     def test_assets_have_expected_png_dimensions(self):
         for name in VARIANTS:
@@ -270,7 +302,11 @@ class AssetTests(unittest.TestCase):
         for name, top_rgb in expected.items():
             with self.subTest(name=name):
                 path = ROOT / name / "backgrounds" / f"{name}.png"
-                self.assertEqual(top_rgb, self.png_top_left_rgb(path))
+                self.assertEqual(top_rgb, self.png_corner_rgb(path))
+
+    def test_light_wallpaper_ends_on_the_primary_surface(self):
+        path = ROOT / "macos-classic-light/backgrounds/macos-classic-light.png"
+        self.assertEqual((249, 249, 249), self.png_corner_rgb(path, bottom=True))
 
 
 class InstallerTests(unittest.TestCase):
