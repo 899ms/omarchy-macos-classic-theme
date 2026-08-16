@@ -114,6 +114,14 @@ class PaletteTests(unittest.TestCase):
         self.assertEqual("#E0E0E0", palette["darker_background"])
         self.assertEqual("#0060de", palette["accent"])
 
+    def test_light_muted_text_has_strong_readability(self):
+        palette = load_palette("macos-classic-light")
+        self.assertEqual("#555555", palette["muted"])
+        self.assertEqual("#555555", palette["dark_foreground"])
+        self.assertGreaterEqual(
+            contrast_ratio(palette["muted"], palette["background"]), 7.0
+        )
+
 
 class IntegrationTests(unittest.TestCase):
     REQUIRED_FILES = {
@@ -151,14 +159,14 @@ class IntegrationTests(unittest.TestCase):
                     self.assertLess(relative_luminance(border), relative_luminance(palette["accent"]))
                 self.assertIn("border_active = active_border_color", content)
 
-    def test_light_window_and_panel_borders_are_neutral(self):
+    def test_light_window_border_is_neutral_and_panel_focus_border_is_blue(self):
         content = (ROOT / "macos-classic-light" / "hyprland.lua").read_text()
         self.assertIn('active_border_color = "rgb(d2d2d2)"', content.lower())
 
         shell = tomllib.loads(
             (ROOT / "macos-classic-light" / "shell.hyprland.toml").read_text()
         )
-        self.assertEqual("#D2D2D2", shell["active-border"])
+        self.assertEqual("#004A9F", shell["active-border"])
         self.assertEqual("#D2D2D2", shell["active-border-foreground"])
 
     def test_btop_defines_all_required_theme_fields(self):
@@ -235,7 +243,7 @@ class IntegrationTests(unittest.TestCase):
                 shell = tomllib.loads((home / ".local/state/omarchy/current/theme/shell.toml").read_text())
                 panel_border = shell["hyprland"]["active-border"]
                 if name == "macos-classic-light":
-                    self.assertEqual("#D2D2D2", panel_border)
+                    self.assertEqual("#004A9F", panel_border)
                     self.assertEqual(
                         "#D2D2D2", shell["hyprland"]["active-border-foreground"]
                     )
