@@ -25,6 +25,7 @@ macos-classic-light/
   icons.theme
   neovim.lua
   vscode.json
+  zed.json
   preview.png
   preview-unlock.png
   unlock.png
@@ -38,6 +39,7 @@ macos-classic-dark/
   icons.theme
   neovim.lua
   vscode.json
+  zed.json
   preview.png
   preview-unlock.png
   unlock.png
@@ -72,7 +74,9 @@ Where a source color lacks enough contrast in its new role, it may be adjusted m
 - btop will use the canonical semantic colors and surface hierarchy.
 - Chromium will use the primary background color.
 - Icon files will select a broadly available light/dark-compatible icon theme rather than introducing an icon dependency.
-- Neovim and VS Code files will select the closest maintained macOS-classic-compatible theme where one can be named reliably. If no suitable external theme exists, the files will use a safe built-in or broadly available fallback and the README will state that limitation.
+- VS Code and Zed metadata will select their official macOS Classic extensions and the correct light/dark variant names. Neovim will use a broadly available fallback because the upstream macOS Classic family does not provide a maintained Neovim theme.
+
+Monaco is the intended monospace font. Because Omarchy manages fonts separately from themes and Monaco is proprietary, the repository will not bundle or automatically apply it. The installer will report whether Monaco is available, and the README will document `omarchy font set Monaco` plus Zed's `buffer_font_family` setting.
 
 No configuration under `/usr/share/omarchy` or the user's `~/.config` directory will be modified. This repository will remain a distributable theme source.
 

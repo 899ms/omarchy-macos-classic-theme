@@ -65,17 +65,19 @@ git commit -m "feat: add macOS Classic Omarchy palettes"
 - Create: `macos-classic-light/icons.theme`
 - Create: `macos-classic-light/neovim.lua`
 - Create: `macos-classic-light/vscode.json`
+- Create: `macos-classic-light/zed.json`
 - Create: `macos-classic-dark/hyprland.lua`
 - Create: `macos-classic-dark/btop.theme`
 - Create: `macos-classic-dark/chromium.theme`
 - Create: `macos-classic-dark/icons.theme`
 - Create: `macos-classic-dark/neovim.lua`
 - Create: `macos-classic-dark/vscode.json`
+- Create: `macos-classic-dark/zed.json`
 - Modify: `tests/test_theme.py`
 
 **Interfaces:**
 - Consumes: Exact palette values from each variant's `colors.toml`.
-- Produces: Current Omarchy integration files for Hyprland, btop, Chromium, icons, Neovim, and VS Code.
+- Produces: Current Omarchy integration files for Hyprland, btop, Chromium, icons, Neovim, VS Code, and Zed metadata.
 
 - [ ] **Step 1: Extend tests for required files and syntax**
 
@@ -89,7 +91,7 @@ Expected: FAIL listing missing integration files.
 
 - [ ] **Step 3: Add integration files**
 
-Use palette-consistent application colors. Configure active Hyprland borders from each accent, select `Adwaita` for light icons and `Adwaita-dark` for dark icons, and use documented fallback editor themes where a native macOS Classic package is unavailable.
+Use palette-consistent application colors. Configure active Hyprland borders from each accent, select `Adwaita` for light icons and `Adwaita-dark` for dark icons, use the official macOS Classic VS Code and Zed extension metadata, and retain a documented Neovim fallback.
 
 - [ ] **Step 4: Run the tests and verify success**
 
@@ -172,7 +174,7 @@ Expected: FAIL because `install.sh` is absent.
 
 - [ ] **Step 3: Implement installer and README**
 
-Implement strict Bash argument parsing, preflight both destinations before copying, and document `./install.sh`, `omarchy theme set macos-classic-light`, `omarchy theme set macos-classic-dark`, manual installation, palette attribution, compatibility, and editor fallbacks.
+Implement strict Bash argument parsing, preflight both destinations before copying, report Monaco availability without modifying the global font, and document `./install.sh`, `omarchy theme set macos-classic-light`, `omarchy theme set macos-classic-dark`, `omarchy font set Monaco`, manual installation, palette attribution, compatibility, and editor integration.
 
 - [ ] **Step 4: Validate installer and documentation**
 

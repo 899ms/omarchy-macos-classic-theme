@@ -1,5 +1,6 @@
 import colorsys
 import json
+import os
 import shutil
 import struct
 import subprocess
@@ -199,6 +200,64 @@ class AssetTests(unittest.TestCase):
             for path, dimensions in expected.items():
                 with self.subTest(path=path):
                     self.assertEqual(dimensions, self.png_dimensions(path))
+
+
+class InstallerTests(unittest.TestCase):
+    def run_installer(self, *arguments, env=None):
+        return subprocess.run(
+            ["bash", ROOT / "install.sh", *map(str, arguments)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+
+    def test_installer_copies_both_themes_without_activating_one(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            bin_dir = Path(temporary) / "bin"
+            bin_dir.mkdir()
+            marker = Path(temporary) / "omarchy-invoked"
+            omarchy = bin_dir / "omarchy"
+            omarchy.write_text(f"#!/usr/bin/env bash\ntouch {marker}\n")
+            omarchy.chmod(0o755)
+            env = os.environ | {"PATH": f"{bin_dir}:{os.environ['PATH']}"}
+
+            result = self.run_installer("--destination", destination, env=env)
+            self.assertEqual(0, result.returncode, result.stderr)
+            for name in VARIANTS:
+                self.assertTrue((destination / name / "colors.toml").is_file())
+            self.assertFalse(marker.exists())
+            self.assertIn("Monaco", result.stdout)
+
+    def test_installer_refuses_to_overwrite_either_theme(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
+            marker = destination / "macos-classic-light" / "keep-me"
+            marker.write_text("preserve")
+
+            result = self.run_installer("--destination", destination)
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("preserve", marker.read_text())
+
+    def test_replace_replaces_both_themes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
+            marker = destination / "macos-classic-light" / "remove-me"
+            marker.write_text("old")
+
+            result = self.run_installer("--replace", "--destination", destination)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_unknown_argument_fails_without_copying(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            result = self.run_installer("--unknown", "--destination", destination)
+            self.assertNotEqual(0, result.returncode)
+            self.assertFalse(destination.exists())
 
 
 if __name__ == "__main__":
