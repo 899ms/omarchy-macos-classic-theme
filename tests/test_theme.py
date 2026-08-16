@@ -95,5 +95,77 @@ class PaletteTests(unittest.TestCase):
                 self.assertGreaterEqual(contrast_ratio(palette["foreground"], palette["background"]), 4.5)
 
 
+class IntegrationTests(unittest.TestCase):
+    REQUIRED_FILES = {
+        "hyprland.lua",
+        "btop.theme",
+        "chromium.theme",
+        "icons.theme",
+        "neovim.lua",
+        "vscode.json",
+    }
+
+    def test_all_integration_files_exist(self):
+        for name in VARIANTS:
+            for filename in self.REQUIRED_FILES:
+                with self.subTest(name=name, filename=filename):
+                    self.assertTrue((ROOT / name / filename).is_file())
+
+    def test_chromium_uses_source_background(self):
+        for name, expected in VARIANTS.items():
+            with self.subTest(name=name):
+                value = (ROOT / name / "chromium.theme").read_text().strip()
+                self.assertEqual(expected["chromium"], value)
+                self.assertTrue(all(0 <= int(channel) <= 255 for channel in value.split(",")))
+
+    def test_hyprland_uses_accent_for_active_borders(self):
+        for name, expected in VARIANTS.items():
+            with self.subTest(name=name):
+                content = (ROOT / name / "hyprland.lua").read_text()
+                accent = expected["accent"].removeprefix("#").lower()
+                self.assertIn(f'local active_border_color = "rgb({accent})"', content.lower())
+                self.assertIn("border_active = active_border_color", content)
+
+    def test_btop_defines_all_required_theme_fields(self):
+        required = {
+            "main_bg", "main_fg", "title", "hi_fg", "selected_bg", "selected_fg",
+            "inactive_fg", "proc_misc", "cpu_box", "mem_box", "net_box", "proc_box",
+            "div_line", "temp_start", "temp_mid", "temp_end", "cpu_start", "cpu_mid",
+            "cpu_end", "free_start", "free_mid", "free_end", "cached_start", "cached_mid",
+            "cached_end", "available_start", "available_mid", "available_end", "used_start",
+            "used_mid", "used_end", "download_start", "download_mid", "download_end",
+            "upload_start", "upload_mid", "upload_end",
+        }
+        for name in VARIANTS:
+            with self.subTest(name=name):
+                content = (ROOT / name / "btop.theme").read_text()
+                present = {
+                    line.split("]", 1)[0].removeprefix("theme[")
+                    for line in content.splitlines()
+                    if line.startswith("theme[")
+                }
+                self.assertEqual(required, present)
+
+    def test_editor_metadata_is_valid(self):
+        for name in VARIANTS:
+            with self.subTest(name=name):
+                metadata = json.loads((ROOT / name / "vscode.json").read_text())
+                self.assertEqual({"name", "extension"}, set(metadata))
+                self.assertTrue(metadata["name"])
+                self.assertIn(".", metadata["extension"])
+
+    @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
+    def test_lua_files_parse(self):
+        for name in VARIANTS:
+            for filename in ("hyprland.lua", "neovim.lua"):
+                with self.subTest(name=name, filename=filename):
+                    result = subprocess.run(
+                        ["luac", "-p", ROOT / name / filename],
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
