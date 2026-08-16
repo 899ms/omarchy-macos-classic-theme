@@ -3,19 +3,14 @@ set -euo pipefail
 
 repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 destination=${HOME}/.config/omarchy/themes
-replace=0
 themes=(macos-classic-light macos-classic-dark)
 
 usage() {
-  echo "Usage: ./install.sh [--force|--replace] [--destination DIR]"
+  echo "Usage: ./install.sh [--destination DIR]"
 }
 
 while (($#)); do
   case "$1" in
-    --force|--replace)
-      replace=1
-      shift
-      ;;
     --destination)
       if (($# < 2)); then
         echo "Error: --destination requires a directory." >&2
@@ -37,18 +32,9 @@ while (($#)); do
   esac
 done
 
-for theme in "${themes[@]}"; do
-  if [[ -e "$destination/$theme" && $replace -eq 0 ]]; then
-    echo "Error: $destination/$theme already exists; rerun with --replace to replace both variants." >&2
-    exit 1
-  fi
-done
-
 mkdir -p -- "$destination"
 for theme in "${themes[@]}"; do
-  if ((replace)); then
-    rm -rf -- "$destination/$theme"
-  fi
+  rm -rf -- "$destination/$theme"
   cp -R -- "$repo_dir/$theme" "$destination/$theme"
   echo "Installed $theme"
 done

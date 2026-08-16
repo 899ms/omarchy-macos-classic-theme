@@ -275,36 +275,14 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse(marker.exists())
             self.assertIn("Monaco", result.stdout)
 
-    def test_installer_refuses_to_overwrite_either_theme(self):
+    def test_installer_updates_both_existing_themes_by_default(self):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "themes"
             self.assertEqual(0, self.run_installer("--destination", destination).returncode)
             marker = destination / "macos-classic-light" / "keep-me"
-            marker.write_text("preserve")
+            marker.write_text("old")
 
             result = self.run_installer("--destination", destination)
-            self.assertNotEqual(0, result.returncode)
-            self.assertEqual("preserve", marker.read_text())
-
-    def test_replace_replaces_both_themes(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / "themes"
-            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
-            marker = destination / "macos-classic-light" / "remove-me"
-            marker.write_text("old")
-
-            result = self.run_installer("--replace", "--destination", destination)
-            self.assertEqual(0, result.returncode, result.stderr)
-            self.assertFalse(marker.exists())
-
-    def test_force_alias_replaces_both_themes(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            destination = Path(temporary) / "themes"
-            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
-            marker = destination / "macos-classic-dark" / "remove-me"
-            marker.write_text("old")
-
-            result = self.run_installer("--force", "--destination", destination)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertFalse(marker.exists())
 
