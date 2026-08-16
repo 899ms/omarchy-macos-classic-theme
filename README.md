@@ -7,6 +7,8 @@ Two Omarchy themes based on Jason Lee's macOS Classic palettes:
 
 Includes matching light and dark palettes, application colors, and simple backgrounds.
 
+![macOS Classic Dark preview](macos-classic-dark/preview.png)
+
 ## Install
 
 ### Quick install
