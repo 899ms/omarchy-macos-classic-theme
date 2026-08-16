@@ -2,7 +2,7 @@ mode = "light"
 
 accent = "#0060de"
 selection = "#b8d8ff"
-muted = "#d2d2d2"
+muted = "#707070"
 
 background = "#F9F9F9"
 dark_background = "#E9E9E9"

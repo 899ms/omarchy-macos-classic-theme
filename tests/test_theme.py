@@ -99,6 +99,12 @@ class PaletteTests(unittest.TestCase):
                 palette = load_palette(name)
                 self.assertGreaterEqual(contrast_ratio(palette["foreground"], palette["background"]), 4.5)
 
+    def test_muted_text_remains_readable(self):
+        for name in VARIANTS:
+            with self.subTest(name=name):
+                palette = load_palette(name)
+                self.assertGreaterEqual(contrast_ratio(palette["muted"], palette["background"]), 4.5)
+
 
 class IntegrationTests(unittest.TestCase):
     REQUIRED_FILES = {
@@ -106,9 +112,9 @@ class IntegrationTests(unittest.TestCase):
         "btop.theme",
         "chromium.theme",
         "icons.theme",
-        "neovim.lua",
         "vscode.json",
         "zed.json",
+        "shell.hyprland.toml",
     }
 
     def test_all_integration_files_exist(self):
@@ -124,12 +130,13 @@ class IntegrationTests(unittest.TestCase):
                 self.assertEqual(expected["chromium"], value)
                 self.assertTrue(all(0 <= int(channel) <= 255 for channel in value.split(",")))
 
-    def test_hyprland_uses_accent_for_active_borders(self):
-        for name, expected in VARIANTS.items():
+    def test_hyprland_active_border_is_quieter_than_accent(self):
+        for name in VARIANTS:
             with self.subTest(name=name):
                 content = (ROOT / name / "hyprland.lua").read_text()
-                accent = expected["accent"].removeprefix("#").lower()
-                self.assertIn(f'local active_border_color = "rgb({accent})"', content.lower())
+                border = "#" + content.split('rgb(', 1)[1].split(')', 1)[0]
+                palette = load_palette(name)
+                self.assertLess(relative_luminance(border), relative_luminance(palette["accent"]))
                 self.assertIn("border_active = active_border_color", content)
 
     def test_btop_defines_all_required_theme_fields(self):
@@ -169,10 +176,48 @@ class IntegrationTests(unittest.TestCase):
                     zed,
                 )
 
+    def test_icon_theme_is_installed(self):
+        icon_roots = (Path("/usr/share/icons"), Path.home() / ".local/share/icons", Path.home() / ".icons")
+        for name in VARIANTS:
+            with self.subTest(name=name):
+                icon_theme = (ROOT / name / "icons.theme").read_text().strip()
+                self.assertTrue(
+                    any((root / icon_theme / "index.theme").is_file() for root in icon_roots),
+                    f"Icon theme {icon_theme!r} is not installed",
+                )
+
+    @unittest.skipUnless(shutil.which("omarchy-theme-set"), "Omarchy is not installed")
+    def test_current_omarchy_generates_palette_native_neovim_theme(self):
+        for name, expected in VARIANTS.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                home = Path(temporary)
+                theme_root = home / ".config/omarchy/themes"
+                runtime = home / "run"
+                theme_root.mkdir(parents=True)
+                runtime.mkdir()
+                shutil.copytree(ROOT / name, theme_root / name)
+                env = os.environ | {
+                    "HOME": str(home),
+                    "OMARCHY_PATH": "/usr/share/omarchy",
+                    "OMARCHY_THEME_HEADLESS": "1",
+                    "XDG_RUNTIME_DIR": str(runtime),
+                }
+                result = subprocess.run(
+                    ["omarchy-theme-set", name], capture_output=True, text=True, env=env
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                generated = (home / ".local/state/omarchy/current/theme/neovim.lua").read_text()
+                self.assertIn('"bjarneo/aether.nvim"', generated)
+                self.assertIn(expected["background"], generated)
+
+                shell = tomllib.loads((home / ".local/state/omarchy/current/theme/shell.toml").read_text())
+                panel_border = shell["hyprland"]["active-border"]
+                self.assertLess(relative_luminance(panel_border), relative_luminance(expected["accent"]))
+
     @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
     def test_lua_files_parse(self):
         for name in VARIANTS:
-            for filename in ("hyprland.lua", "neovim.lua"):
+            for filename in ("hyprland.lua",):
                 with self.subTest(name=name, filename=filename):
                     result = subprocess.run(
                         ["luac", "-p", ROOT / name / filename],
@@ -249,6 +294,17 @@ class InstallerTests(unittest.TestCase):
             marker.write_text("old")
 
             result = self.run_installer("--replace", "--destination", destination)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_force_alias_replaces_both_themes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
+            marker = destination / "macos-classic-dark" / "remove-me"
+            marker.write_text("old")
+
+            result = self.run_installer("--force", "--destination", destination)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertFalse(marker.exists())
 

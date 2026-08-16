@@ -7,12 +7,12 @@ replace=0
 themes=(macos-classic-light macos-classic-dark)
 
 usage() {
-  echo "Usage: ./install.sh [--replace] [--destination DIR]"
+  echo "Usage: ./install.sh [--force|--replace] [--destination DIR]"
 }
 
 while (($#)); do
   case "$1" in
-    --replace)
+    --force|--replace)
       replace=1
       shift
       ;;
