@@ -42,6 +42,7 @@ THEME_FILES = {
     "preview.png",
     "preview-unlock.png",
     "shell.hyprland.toml",
+    "slack.theme",
     "unlock.png",
     "vscode.json",
     "zed.json",
@@ -236,6 +237,7 @@ class IntegrationTests(unittest.TestCase):
         "vscode.json",
         "zed.json",
         "shell.hyprland.toml",
+        "slack.theme",
     }
 
     def test_all_integration_files_exist(self):
@@ -250,6 +252,18 @@ class IntegrationTests(unittest.TestCase):
                 value = (theme_dir(name) /"chromium.theme").read_text().strip()
                 self.assertEqual(expected["chromium"], value)
                 self.assertTrue(all(0 <= int(channel) <= 255 for channel in value.split(",")))
+
+    def test_slack_legacy_themes_are_importable_and_readable(self):
+        for name in VARIANTS:
+            with self.subTest(name=name):
+                colors = (theme_dir(name) / "slack.theme").read_text().strip().split(",")
+                self.assertEqual(8, len(colors))
+                self.assertTrue(all(re.fullmatch(r"#[0-9A-Fa-f]{6}", color) for color in colors))
+
+                column_background, _, active_item, active_item_text, _, text, _, badge = colors
+                self.assertGreaterEqual(contrast_ratio(text, column_background), 4.5)
+                self.assertGreaterEqual(contrast_ratio(active_item_text, active_item), 4.5)
+                self.assertGreaterEqual(contrast_ratio("#FFFFFF", badge), 4.5)
 
     def test_hyprland_active_border_is_quieter_than_accent(self):
         for name in VARIANTS:

@@ -27,6 +27,17 @@ omarchy theme set macos-classic-light
 
 `install.sh` installs both variants and applies `macos-classic`; pass `--no-activate` to install without switching themes.
 
+## Slack
+
+Each variant includes a Slack custom theme that you can import manually:
+
+1. Open your profile menu in Slack and select **Preferences**.
+2. Open **Appearance**, select **Custom theme**, then choose **Import theme**.
+3. Paste the contents of [`slack.theme`](slack.theme) for dark mode or
+   [`macos-classic-light/slack.theme`](macos-classic-light/slack.theme) for light mode, then apply it.
+
+Slack stores custom themes per user rather than reading them from Omarchy, so changing Omarchy themes does not switch Slack automatically.
+
 ## Credits
 
 Based on [`huacnlee/zed-theme-macos-classic`](https://github.com/huacnlee/zed-theme-macos-classic) and the matching [VS Code theme](https://marketplace.visualstudio.com/items?itemName=huacnlee.theme-macos-classic).

@@ -18,6 +18,7 @@ dark_files=(
   preview.png
   preview-unlock.png
   shell.hyprland.toml
+  slack.theme
   unlock.png
   vscode.json
   zed.json
