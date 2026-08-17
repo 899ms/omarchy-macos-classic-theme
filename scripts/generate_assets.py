@@ -11,16 +11,19 @@ ROOT = Path(__file__).resolve().parents[1]
 # The dark variant lives at the repository root: `omarchy theme install` clones a
 # repo straight into ~/.config/omarchy/themes/<name>, so it only ever sees one
 # theme, built from the files at the top level.
+#
+# There is no wallpaper artwork on purpose: the desktop is a single flat fill so
+# it disappears behind the windows the way the classic desktop did instead of
+# reading as a picture. The fill sits one step below every palette surface, so
+# windows read as raised off the desktop rather than melting into it.
 THEMES = {
     "macos-classic-light": {
         "directory": ROOT / "macos-classic-light",
-        "top": "#FFFFFF",
-        "bottom": "#F9F9F9",
+        "color": "#D8D8D8",
     },
     "macos-classic-dark": {
         "directory": ROOT,
-        "top": "#1A1A1A",
-        "bottom": "#050505",
+        "color": "#050505",
     },
 }
 
@@ -35,17 +38,11 @@ def chunk(kind, payload):
 
 
 def render_png(path, width, height, colors):
-    top, bottom = (rgb(colors[key]) for key in ("top", "bottom"))
-    rows = []
-
-    for y in range(height):
-        position = y / max(1, height - 1)
-        pixel = tuple(round(start + (end - start) * position) for start, end in zip(top, bottom))
-        rows.append(b"\x00" + bytes(pixel) * width)
+    row = b"\x00" + bytes(rgb(colors["color"])) * width
 
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     payload = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
-    payload += chunk(b"IDAT", zlib.compress(b"".join(rows), level=9))
+    payload += chunk(b"IDAT", zlib.compress(row * height, level=9))
     payload += chunk(b"IEND", b"")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(payload)
@@ -54,9 +51,10 @@ def render_png(path, width, height, colors):
 def main():
     for name, colors in THEMES.items():
         theme = colors["directory"]
+        # preview.png is a hand-captured screenshot of the desktop, not a
+        # generated fill, so it is deliberately absent here.
         render_png(theme / "backgrounds" / f"{name}.png", 1920, 1080, colors)
         render_png(theme / "unlock.png", 1920, 1080, colors)
-        render_png(theme / "preview.png", 640, 360, colors)
         render_png(theme / "preview-unlock.png", 640, 360, colors)
 
 

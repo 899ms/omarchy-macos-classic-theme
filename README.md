@@ -1,6 +1,6 @@
 # macOS Classic for Omarchy
 
-An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors and a matching background.
+An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors and a blank desktop that sits a shade below every window surface.
 
 <img width="3840" height="2160" alt="screenshot-2026-08-16_16-53-45" src="https://github.com/user-attachments/assets/828e801b-2a15-4220-ad6d-b46f565a65d6" />
 
@@ -25,7 +25,7 @@ cd omarchy-macos-classic-theme
 omarchy theme set macos-classic-light
 ```
 
-`install.sh` installs both variants and activates neither.
+`install.sh` installs both variants and applies `macos-classic`; pass `--no-activate` to install without switching themes.
 
 ## Credits
 
