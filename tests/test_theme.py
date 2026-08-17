@@ -13,6 +13,40 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# `omarchy theme install` clones a repo straight into ~/.config/omarchy/themes/<name>
+# and reads the theme from the files at the top level, so a repository can only
+# carry one installable theme. The dark variant is that theme and lives at the
+# root; the light variant stays in a subdirectory for install.sh to pick up.
+DIRECTORIES = {
+    "macos-classic-dark": ROOT,
+    "macos-classic-light": ROOT / "macos-classic-light",
+}
+
+# omarchy derives the installed name from the repo name: omarchy-macos-classic-theme
+# loses the omarchy- prefix and the -theme suffix.
+INSTALLED_NAMES = {
+    "macos-classic-dark": "macos-classic",
+    "macos-classic-light": "macos-classic-light",
+}
+
+# Files that make up a theme. The repository root holds these plus the README,
+# installer, tests, and the light variant.
+THEME_FILES = {
+    "backgrounds",
+    "btop.theme",
+    "chromium.theme",
+    "colors.toml",
+    "hyprland.lua",
+    "icons.theme",
+    "preview.png",
+    "preview-unlock.png",
+    "shell.hyprland.toml",
+    "unlock.png",
+    "vscode.json",
+    "zed.json",
+}
+
 VARIANTS = {
     "macos-classic-light": {
         "mode": "light",
@@ -64,8 +98,12 @@ COLOR_KEYS = {
 }
 
 
+def theme_dir(name):
+    return DIRECTORIES[name]
+
+
 def load_palette(name):
-    with (ROOT / name / "colors.toml").open("rb") as handle:
+    with (theme_dir(name) / "colors.toml").open("rb") as handle:
         return tomllib.load(handle)
 
 
@@ -204,19 +242,19 @@ class IntegrationTests(unittest.TestCase):
         for name in VARIANTS:
             for filename in self.REQUIRED_FILES:
                 with self.subTest(name=name, filename=filename):
-                    self.assertTrue((ROOT / name / filename).is_file())
+                    self.assertTrue((theme_dir(name) /filename).is_file())
 
     def test_chromium_uses_source_background(self):
         for name, expected in VARIANTS.items():
             with self.subTest(name=name):
-                value = (ROOT / name / "chromium.theme").read_text().strip()
+                value = (theme_dir(name) /"chromium.theme").read_text().strip()
                 self.assertEqual(expected["chromium"], value)
                 self.assertTrue(all(0 <= int(channel) <= 255 for channel in value.split(",")))
 
     def test_hyprland_active_border_is_quieter_than_accent(self):
         for name in VARIANTS:
             with self.subTest(name=name):
-                content = (ROOT / name / "hyprland.lua").read_text()
+                content = (theme_dir(name) /"hyprland.lua").read_text()
                 border = "#" + content.split('rgb(', 1)[1].split(')', 1)[0]
                 palette = load_palette(name)
                 self.assertNotEqual(border.lower(), palette["accent"].lower())
@@ -235,11 +273,11 @@ class IntegrationTests(unittest.TestCase):
         }
         for name, borders in expected.items():
             with self.subTest(name=name):
-                content = (ROOT / name / "hyprland.lua").read_text().lower()
+                content = (theme_dir(name) /"hyprland.lua").read_text().lower()
                 self.assertIn(f'active_border_color = "rgb({borders["window"]})"', content)
                 self.assertTrue(is_neutral("#" + borders["window"]))
 
-                shell = tomllib.loads((ROOT / name / "shell.hyprland.toml").read_text())
+                shell = tomllib.loads((theme_dir(name) /"shell.hyprland.toml").read_text())
                 self.assertEqual(borders["panel"], shell["active-border"])
                 for key in ("active-border", "active-border-foreground"):
                     self.assertTrue(
@@ -250,7 +288,7 @@ class IntegrationTests(unittest.TestCase):
     def test_dark_inactive_border_is_opaque_and_reads_against_the_surface(self):
         # The shared Omarchy default is rgba(595959aa); that alpha blends the
         # inactive frame down into the near-black surface until it disappears.
-        content = (ROOT / "macos-classic-dark" / "hyprland.lua").read_text().lower()
+        content = (theme_dir("macos-classic-dark") / "hyprland.lua").read_text().lower()
         self.assertIn('inactive_border_color = "rgb(595959)"', content)
         self.assertIn("inactive_border = inactive_border_color", content)
         self.assertIn("border_inactive = inactive_border_color", content)
@@ -284,7 +322,7 @@ class IntegrationTests(unittest.TestCase):
         } | {f"gradient_color_{index}" for index in range(8)}
         for name in VARIANTS:
             with self.subTest(name=name):
-                content = (ROOT / name / "btop.theme").read_text()
+                content = (theme_dir(name) /"btop.theme").read_text()
                 present = {
                     line.split("]", 1)[0].removeprefix("theme[")
                     for line in content.splitlines()
@@ -301,13 +339,13 @@ class IntegrationTests(unittest.TestCase):
         generated = set(re.findall(r"theme\[(\w+)\]", template.read_text()))
         for name in VARIANTS:
             with self.subTest(name=name):
-                ours = set(re.findall(r"theme\[(\w+)\]", (ROOT / name / "btop.theme").read_text()))
+                ours = set(re.findall(r"theme\[(\w+)\]", (theme_dir(name) /"btop.theme").read_text()))
                 self.assertEqual(generated, ours)
 
     def test_btop_graph_gradient_ramps_from_background_to_foreground(self):
         for name in VARIANTS:
             with self.subTest(name=name):
-                content = (ROOT / name / "btop.theme").read_text()
+                content = (theme_dir(name) /"btop.theme").read_text()
                 ramp = [
                     re.search(rf'theme\[gradient_color_{index}\]="(#\w{{6}})"', content).group(1)
                     for index in range(8)
@@ -324,12 +362,12 @@ class IntegrationTests(unittest.TestCase):
     def test_editor_metadata_is_valid(self):
         for name, expected in VARIANTS.items():
             with self.subTest(name=name):
-                metadata = json.loads((ROOT / name / "vscode.json").read_text())
+                metadata = json.loads((theme_dir(name) /"vscode.json").read_text())
                 self.assertEqual({"name", "extension"}, set(metadata))
                 self.assertEqual(expected["vscode"], metadata["name"])
                 self.assertEqual("huacnlee.theme-macos-classic", metadata["extension"])
 
-                zed = json.loads((ROOT / name / "zed.json").read_text())
+                zed = json.loads((theme_dir(name) /"zed.json").read_text())
                 self.assertEqual(
                     {
                         "extension": "macos-classic",
@@ -342,7 +380,7 @@ class IntegrationTests(unittest.TestCase):
         icon_roots = (Path("/usr/share/icons"), Path.home() / ".local/share/icons", Path.home() / ".icons")
         for name in VARIANTS:
             with self.subTest(name=name):
-                icon_theme = (ROOT / name / "icons.theme").read_text().strip()
+                icon_theme = (theme_dir(name) /"icons.theme").read_text().strip()
                 self.assertTrue(
                     any((root / icon_theme / "index.theme").is_file() for root in icon_roots),
                     f"Icon theme {icon_theme!r} is not installed",
@@ -357,7 +395,16 @@ class IntegrationTests(unittest.TestCase):
                 runtime = home / "run"
                 theme_root.mkdir(parents=True)
                 runtime.mkdir()
-                shutil.copytree(ROOT / name, theme_root / name)
+                # Copy the directory wholesale, the way `omarchy theme install`
+                # clones a repo: for the dark variant that drags the README,
+                # installer, and light variant in alongside the theme files, and
+                # omarchy still has to resolve the right palette and background.
+                installed = INSTALLED_NAMES[name]
+                shutil.copytree(
+                    theme_dir(name),
+                    theme_root / installed,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__"),
+                )
                 env = os.environ | {
                     "HOME": str(home),
                     "OMARCHY_PATH": "/usr/share/omarchy",
@@ -365,7 +412,7 @@ class IntegrationTests(unittest.TestCase):
                     "XDG_RUNTIME_DIR": str(runtime),
                 }
                 result = subprocess.run(
-                    ["omarchy-theme-set", name], capture_output=True, text=True, env=env
+                    ["omarchy-theme-set", installed], capture_output=True, text=True, env=env
                 )
                 self.assertEqual(0, result.returncode, result.stderr)
                 generated = (home / ".local/state/omarchy/current/theme/neovim.lua").read_text()
@@ -389,7 +436,7 @@ class IntegrationTests(unittest.TestCase):
             for filename in ("hyprland.lua",):
                 with self.subTest(name=name, filename=filename):
                     result = subprocess.run(
-                        ["luac", "-p", ROOT / name / filename],
+                        ["luac", "-p", theme_dir(name) /filename],
                         capture_output=True,
                         text=True,
                     )
@@ -424,10 +471,10 @@ class AssetTests(unittest.TestCase):
     def test_assets_have_expected_png_dimensions(self):
         for name in VARIANTS:
             expected = {
-                ROOT / name / "backgrounds" / f"{name}.png": (1920, 1080),
-                ROOT / name / "unlock.png": (1920, 1080),
-                ROOT / name / "preview.png": (640, 360),
-                ROOT / name / "preview-unlock.png": (640, 360),
+                theme_dir(name) /"backgrounds" / f"{name}.png": (1920, 1080),
+                theme_dir(name) /"unlock.png": (1920, 1080),
+                theme_dir(name) /"preview.png": (640, 360),
+                theme_dir(name) /"preview-unlock.png": (640, 360),
             }
             for path, dimensions in expected.items():
                 with self.subTest(path=path):
@@ -440,15 +487,15 @@ class AssetTests(unittest.TestCase):
         }
         for name, top_rgb in expected.items():
             with self.subTest(name=name):
-                path = ROOT / name / "backgrounds" / f"{name}.png"
+                path = theme_dir(name) /"backgrounds" / f"{name}.png"
                 self.assertEqual(top_rgb, self.png_corner_rgb(path))
 
     def test_light_wallpaper_ends_on_the_primary_surface(self):
-        path = ROOT / "macos-classic-light/backgrounds/macos-classic-light.png"
+        path = theme_dir("macos-classic-light") / "backgrounds/macos-classic-light.png"
         self.assertEqual((249, 249, 249), self.png_corner_rgb(path, bottom=True))
 
     def test_dark_wallpaper_ends_below_every_palette_surface(self):
-        path = ROOT / "macos-classic-dark/backgrounds/macos-classic-dark.png"
+        path = theme_dir("macos-classic-dark") / "backgrounds/macos-classic-dark.png"
         bottom = self.png_corner_rgb(path, bottom=True)
         self.assertEqual((5, 5, 5), bottom)
         self.assertLess(
@@ -480,21 +527,34 @@ class InstallerTests(unittest.TestCase):
 
             result = self.run_installer("--destination", destination, env=env)
             self.assertEqual(0, result.returncode, result.stderr)
-            for name in VARIANTS:
-                self.assertTrue((destination / name / "colors.toml").is_file())
+            for installed in INSTALLED_NAMES.values():
+                self.assertTrue((destination / installed / "colors.toml").is_file())
             self.assertFalse(marker.exists())
             self.assertIn("Monaco", result.stdout)
+
+    def test_installer_copies_only_theme_files_out_of_the_repository_root(self):
+        # The dark variant shares its directory with the README, installer, and
+        # the light variant; none of that belongs in an installed theme.
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            self.assertEqual(0, self.run_installer("--destination", destination).returncode)
+            installed = destination / INSTALLED_NAMES["macos-classic-dark"]
+            self.assertEqual(THEME_FILES, {entry.name for entry in installed.iterdir()})
 
     def test_installer_updates_both_existing_themes_by_default(self):
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary) / "themes"
             self.assertEqual(0, self.run_installer("--destination", destination).returncode)
-            marker = destination / "macos-classic-light" / "keep-me"
-            marker.write_text("old")
+            markers = [
+                destination / installed / "keep-me" for installed in INSTALLED_NAMES.values()
+            ]
+            for marker in markers:
+                marker.write_text("old")
 
             result = self.run_installer("--destination", destination)
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertFalse(marker.exists())
+            for marker in markers:
+                self.assertFalse(marker.exists())
 
     def test_unknown_argument_fails_without_copying(self):
         with tempfile.TemporaryDirectory() as temporary:

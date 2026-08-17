@@ -8,12 +8,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# The dark variant lives at the repository root: `omarchy theme install` clones a
+# repo straight into ~/.config/omarchy/themes/<name>, so it only ever sees one
+# theme, built from the files at the top level.
 THEMES = {
     "macos-classic-light": {
+        "directory": ROOT / "macos-classic-light",
         "top": "#FFFFFF",
         "bottom": "#F9F9F9",
     },
     "macos-classic-dark": {
+        "directory": ROOT,
         "top": "#1A1A1A",
         "bottom": "#050505",
     },
@@ -48,7 +53,7 @@ def render_png(path, width, height, colors):
 
 def main():
     for name, colors in THEMES.items():
-        theme = ROOT / name
+        theme = colors["directory"]
         render_png(theme / "backgrounds" / f"{name}.png", 1920, 1080, colors)
         render_png(theme / "unlock.png", 1920, 1080, colors)
         render_png(theme / "preview.png", 640, 360, colors)

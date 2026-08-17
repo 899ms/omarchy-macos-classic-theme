@@ -3,7 +3,26 @@ set -euo pipefail
 
 repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 destination=${HOME}/.config/omarchy/themes
-themes=(macos-classic-light macos-classic-dark)
+
+# The dark variant is the repository root, so `omarchy theme install <repo-url>`
+# installs it directly. Copy only the theme files -- the root also holds the
+# README, tests, and the light variant, none of which belong in a theme.
+dark_name=macos-classic
+dark_files=(
+  backgrounds
+  btop.theme
+  chromium.theme
+  colors.toml
+  hyprland.lua
+  icons.theme
+  preview.png
+  preview-unlock.png
+  shell.hyprland.toml
+  unlock.png
+  vscode.json
+  zed.json
+)
+light_name=macos-classic-light
 
 usage() {
   echo "Usage: ./install.sh [--destination DIR]"
@@ -33,11 +52,17 @@ while (($#)); do
 done
 
 mkdir -p -- "$destination"
-for theme in "${themes[@]}"; do
-  rm -rf -- "$destination/$theme"
-  cp -R -- "$repo_dir/$theme" "$destination/$theme"
-  echo "Installed $theme"
+
+rm -rf -- "${destination:?}/$dark_name"
+mkdir -p -- "$destination/$dark_name"
+for file in "${dark_files[@]}"; do
+  cp -R -- "$repo_dir/$file" "$destination/$dark_name/$file"
 done
+echo "Installed $dark_name"
+
+rm -rf -- "${destination:?}/$light_name"
+cp -R -- "$repo_dir/$light_name" "$destination/$light_name"
+echo "Installed $light_name"
 
 if fc-list : family 2>/dev/null | tr ',' '\n' | grep -Fxiq 'Monaco'; then
   echo "Monaco is available. Apply it with: omarchy font set Monaco"
@@ -45,5 +70,5 @@ else
   echo "Monaco is not installed. Install a licensed copy, then run: omarchy font set Monaco"
 fi
 
-echo "Choose a variant with: omarchy theme set macos-classic-light"
-echo "Or:                    omarchy theme set macos-classic-dark"
+echo "Choose a variant with: omarchy theme set macos-classic"
+echo "Or:                    omarchy theme set macos-classic-light"
