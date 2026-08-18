@@ -283,7 +283,7 @@ class IntegrationTests(unittest.TestCase):
     def test_active_borders_are_neutral_never_blue(self):
         expected = {
             "macos-classic-light": {"window": "d2d2d2", "panel": "#B0B0B0"},
-            "macos-classic-dark": {"window": "7a7a7a", "panel": "#7A7A7A"},
+            "macos-classic-dark": {"window": "595959", "panel": "#595959"},
         }
         for name, borders in expected.items():
             with self.subTest(name=name):
@@ -299,23 +299,31 @@ class IntegrationTests(unittest.TestCase):
                         f"{name} {key} must be neutral, got {shell[key]}",
                     )
 
-    def test_dark_inactive_border_is_opaque_and_reads_against_the_surface(self):
-        # The shared Omarchy default is rgba(595959aa); that alpha blends the
-        # inactive frame down into the near-black surface until it disappears.
+    def test_dark_border_hierarchy_matches_the_source_surfaces(self):
         content = (theme_dir("macos-classic-dark") / "hyprland.lua").read_text().lower()
-        self.assertIn('inactive_border_color = "rgb(595959)"', content)
+        self.assertIn('inactive_border_color = "rgb(202020)"', content)
         self.assertIn("inactive_border = inactive_border_color", content)
         self.assertIn("border_inactive = inactive_border_color", content)
         code = [line for line in content.splitlines() if not line.strip().startswith("--")]
         self.assertNotIn("rgba(", "\n".join(code), "borders must not be alpha-dimmed")
 
         palette = load_palette("macos-classic-dark")
-        active = "#7A7A7A"
-        inactive = "#595959"
+        active = "#595959"
+        inactive = "#202020"
+        shell = tomllib.loads(
+            (theme_dir("macos-classic-dark") / "shell.hyprland.toml").read_text()
+        )
+        self.assertEqual(active, shell["active-border"])
+        self.assertEqual(
+            active,
+            shell["active-border-foreground"],
+            "shell menus must use the same border as the focused window",
+        )
+        self.assertEqual(inactive, shell["inactive-border"])
         self.assertGreater(
+            contrast_ratio(active, palette["background"]),
             contrast_ratio(inactive, palette["background"]),
-            1.8,
-            "inactive frame must stay visible against the surface",
+            "the focused window must read brighter than an unfocused one",
         )
         self.assertGreater(
             relative_luminance(active),
@@ -510,7 +518,7 @@ class AssetTests(unittest.TestCase):
         # so the desktop is blank rather than a picture.
         expected = {
             "macos-classic-light": (216, 216, 216),
-            "macos-classic-dark": (5, 5, 5),
+            "macos-classic-dark": (19, 19, 19),
         }
         for name, fill in expected.items():
             with self.subTest(name=name):
@@ -519,20 +527,32 @@ class AssetTests(unittest.TestCase):
                 self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
                 self.assertEqual({fill}, set(self.png_pixels(path)))
 
-    def test_wallpaper_sits_below_every_palette_surface(self):
+    def test_dark_assets_use_the_source_editor_background(self):
+        theme = theme_dir("macos-classic-dark")
+        paths = (
+            theme / "backgrounds/macos-classic-dark.png",
+            theme / "unlock.png",
+            theme / "preview.png",
+            theme / "preview-unlock.png",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual((19, 19, 19), self.png_corner_rgb(path))
+                self.assertEqual((19, 19, 19), self.png_corner_rgb(path, bottom=True))
+
+    def test_light_wallpaper_sits_below_every_palette_surface(self):
         # The desktop is darker than the editor background so windows read as
         # raised off it instead of melting into it.
-        for name in VARIANTS:
-            with self.subTest(name=name):
-                path = theme_dir(name) / "backgrounds" / f"{name}.png"
-                fill = "#%02X%02X%02X" % self.png_corner_rgb(path)
-                palette = load_palette(name)
-                for key in ("background", "dark_background", "darker_background", "lighter_background"):
-                    self.assertLess(
-                        relative_luminance(fill),
-                        relative_luminance(palette[key]),
-                        f"{name} wallpaper must be darker than {key}",
-                    )
+        name = "macos-classic-light"
+        path = theme_dir(name) / "backgrounds" / f"{name}.png"
+        fill = "#%02X%02X%02X" % self.png_corner_rgb(path)
+        palette = load_palette(name)
+        for key in ("background", "dark_background", "darker_background", "lighter_background"):
+            self.assertLess(
+                relative_luminance(fill),
+                relative_luminance(palette[key]),
+                f"{name} wallpaper must be darker than {key}",
+            )
 
 
 class InstallerTests(unittest.TestCase):
