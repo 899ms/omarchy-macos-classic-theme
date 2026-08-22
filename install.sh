@@ -16,6 +16,7 @@ dark_files=(
   colors.toml
   hyprland.lua
   icons.theme
+  neovim.lua
   preview.png
   preview-unlock.png
   shell.hyprland.toml

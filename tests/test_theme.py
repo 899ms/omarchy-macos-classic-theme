@@ -39,6 +39,7 @@ THEME_FILES = {
     "colors.toml",
     "hyprland.lua",
     "icons.theme",
+    "neovim.lua",
     "preview.png",
     "preview-unlock.png",
     "shell.hyprland.toml",
@@ -457,6 +458,70 @@ class IntegrationTests(unittest.TestCase):
                     contrast_ratio(panel_border, expected["background"]),
                     contrast_ratio(expected["accent"], expected["background"]),
                 )
+
+    @unittest.skipUnless(shutil.which("nvim"), "Neovim is not installed")
+    def test_neovim_themes_apply_editor_syntax_palettes_only(self):
+        script = r'''
+local specs = dofile(assert(os.getenv("THEME_FILE")))
+local normal_before = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+specs[1].init()
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "aether" })
+
+local groups = {
+  class = "@type",
+  method = "@function.method",
+  keyword = "@keyword",
+  parameter = "@variable.parameter",
+  string = "@string",
+  error = "@error",
+}
+local result = {}
+for semantic, group in pairs(groups) do
+  local highlight = vim.api.nvim_get_hl(0, { name = group, link = false })
+  result[semantic] = string.format("#%06X", highlight.fg)
+end
+result.normal_unchanged = vim.deep_equal(
+  normal_before,
+  vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+)
+io.write(vim.json.encode(result))
+'''
+        expected_palettes = {
+            "macos-classic-dark": {
+                "class": "#CBA6F7",
+                "method": "#B3C5F3",
+                "keyword": "#87B1F6",
+                "parameter": "#BCC4E0",
+                "string": "#A3E09F",
+                "error": "#E44A4F",
+                "normal_unchanged": True,
+            },
+            "macos-classic-light": {
+                "class": "#6F42C1",
+                "method": "#0000A2",
+                "keyword": "#0433FF",
+                "parameter": "#333333",
+                "string": "#036A07",
+                "error": "#D21F07",
+                "normal_unchanged": True,
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script_path = Path(temporary) / "inspect.lua"
+            script_path.write_text(script)
+            for name, expected in expected_palettes.items():
+                with self.subTest(name=name):
+                    result = subprocess.run(
+                        [
+                            "nvim", "--headless", "-u", "NONE", "-l", script_path,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        env=os.environ | {"THEME_FILE": str(theme_dir(name) / "neovim.lua")},
+                        cwd=temporary,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual(expected, json.loads(result.stdout))
 
     @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
     def test_lua_files_parse(self):
