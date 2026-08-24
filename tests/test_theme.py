@@ -5,6 +5,7 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -39,6 +40,7 @@ THEME_FILES = {
     "colors.toml",
     "hyprland.lua",
     "icons.theme",
+    "neovim.lua",
     "preview.png",
     "preview-unlock.png",
     "shell.hyprland.toml",
@@ -68,6 +70,12 @@ VARIANTS = {
         "zed": "macOS Classic Dark",
     },
 }
+
+# Longbridge keys its theme registry by theme name and reads user themes from
+# ~/.longbridge/themes, so the repository carries one file, holding the dark
+# variant only, and the installer lands it on omarchy.json.
+LONGBRIDGE_THEME = "Omarchy System"
+LONGBRIDGE_INSTALLED_NAME = "omarchy.json"
 
 COLOR_KEYS = {
     "mode",
@@ -283,7 +291,7 @@ class IntegrationTests(unittest.TestCase):
     def test_active_borders_are_neutral_never_blue(self):
         expected = {
             "macos-classic-light": {"window": "d2d2d2", "panel": "#B0B0B0"},
-            "macos-classic-dark": {"window": "7a7a7a", "panel": "#7A7A7A"},
+            "macos-classic-dark": {"window": "595959", "panel": "#595959"},
         }
         for name, borders in expected.items():
             with self.subTest(name=name):
@@ -299,23 +307,31 @@ class IntegrationTests(unittest.TestCase):
                         f"{name} {key} must be neutral, got {shell[key]}",
                     )
 
-    def test_dark_inactive_border_is_opaque_and_reads_against_the_surface(self):
-        # The shared Omarchy default is rgba(595959aa); that alpha blends the
-        # inactive frame down into the near-black surface until it disappears.
+    def test_dark_border_hierarchy_matches_the_source_surfaces(self):
         content = (theme_dir("macos-classic-dark") / "hyprland.lua").read_text().lower()
-        self.assertIn('inactive_border_color = "rgb(595959)"', content)
+        self.assertIn('inactive_border_color = "rgb(202020)"', content)
         self.assertIn("inactive_border = inactive_border_color", content)
         self.assertIn("border_inactive = inactive_border_color", content)
         code = [line for line in content.splitlines() if not line.strip().startswith("--")]
         self.assertNotIn("rgba(", "\n".join(code), "borders must not be alpha-dimmed")
 
         palette = load_palette("macos-classic-dark")
-        active = "#7A7A7A"
-        inactive = "#595959"
+        active = "#595959"
+        inactive = "#202020"
+        shell = tomllib.loads(
+            (theme_dir("macos-classic-dark") / "shell.hyprland.toml").read_text()
+        )
+        self.assertEqual(active, shell["active-border"])
+        self.assertEqual(
+            active,
+            shell["active-border-foreground"],
+            "shell menus must use the same border as the focused window",
+        )
+        self.assertEqual(inactive, shell["inactive-border"])
         self.assertGreater(
+            contrast_ratio(active, palette["background"]),
             contrast_ratio(inactive, palette["background"]),
-            1.8,
-            "inactive frame must stay visible against the surface",
+            "the focused window must read brighter than an unfocused one",
         )
         self.assertGreater(
             relative_luminance(active),
@@ -444,6 +460,70 @@ class IntegrationTests(unittest.TestCase):
                     contrast_ratio(expected["accent"], expected["background"]),
                 )
 
+    @unittest.skipUnless(shutil.which("nvim"), "Neovim is not installed")
+    def test_neovim_themes_apply_editor_syntax_palettes_only(self):
+        script = r'''
+local specs = dofile(assert(os.getenv("THEME_FILE")))
+local normal_before = vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+specs[1].init()
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "aether" })
+
+local groups = {
+  class = "@type",
+  method = "@function.method",
+  keyword = "@keyword",
+  parameter = "@variable.parameter",
+  string = "@string",
+  error = "@error",
+}
+local result = {}
+for semantic, group in pairs(groups) do
+  local highlight = vim.api.nvim_get_hl(0, { name = group, link = false })
+  result[semantic] = string.format("#%06X", highlight.fg)
+end
+result.normal_unchanged = vim.deep_equal(
+  normal_before,
+  vim.api.nvim_get_hl(0, { name = "Normal", link = false })
+)
+io.write(vim.json.encode(result))
+'''
+        expected_palettes = {
+            "macos-classic-dark": {
+                "class": "#CBA6F7",
+                "method": "#B3C5F3",
+                "keyword": "#87B1F6",
+                "parameter": "#BCC4E0",
+                "string": "#A3E09F",
+                "error": "#E44A4F",
+                "normal_unchanged": True,
+            },
+            "macos-classic-light": {
+                "class": "#6F42C1",
+                "method": "#0000A2",
+                "keyword": "#0433FF",
+                "parameter": "#333333",
+                "string": "#036A07",
+                "error": "#D21F07",
+                "normal_unchanged": True,
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            script_path = Path(temporary) / "inspect.lua"
+            script_path.write_text(script)
+            for name, expected in expected_palettes.items():
+                with self.subTest(name=name):
+                    result = subprocess.run(
+                        [
+                            "nvim", "--headless", "-u", "NONE", "-l", script_path,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        env=os.environ | {"THEME_FILE": str(theme_dir(name) / "neovim.lua")},
+                        cwd=temporary,
+                    )
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual(expected, json.loads(result.stdout))
+
     @unittest.skipUnless(shutil.which("luac"), "luac is not installed")
     def test_lua_files_parse(self):
         for name in VARIANTS:
@@ -455,6 +535,100 @@ class IntegrationTests(unittest.TestCase):
                         text=True,
                     )
                     self.assertEqual(0, result.returncode, result.stderr)
+
+
+class LongbridgeThemeTests(unittest.TestCase):
+    def load(self):
+        return json.loads((ROOT / "longbridge.json").read_text())
+
+    def theme(self):
+        return self.load()["themes"][0]
+
+    def test_the_file_carries_one_dark_theme_named_after_omarchy(self):
+        theme_set = self.load()
+        self.assertEqual(LONGBRIDGE_THEME, theme_set["name"])
+        # Longbridge stores themes in a map keyed by theme name, so two variants
+        # sharing a name would silently drop one. This file ships dark only.
+        self.assertEqual(1, len(theme_set["themes"]))
+        self.assertEqual(LONGBRIDGE_THEME, self.theme()["name"])
+        self.assertEqual("dark", self.theme()["mode"])
+
+    def test_colors_come_from_the_dark_palette(self):
+        palette = load_palette("macos-classic-dark")
+        colors = self.theme()["colors"]
+        expected = {
+            "accent.background": palette["lighter_background"],
+            "accent.foreground": palette["light_foreground"],
+            "background": palette["background"],
+            "foreground": palette["foreground"],
+            "link": palette["blue"],
+            "list.active.border": palette["accent"],
+            "list.even.background": palette["lighter_background"],
+            "muted.background": palette["lighter_background"],
+            "muted.foreground": palette["muted"],
+            "popover.background": palette["dark_background"],
+            "popover.foreground": palette["light_foreground"],
+            "primary.background": palette["accent"],
+            "primary.foreground": palette["bright_foreground"],
+            "ring": palette["accent"],
+            "selection.background": palette["selection"],
+            "tab.active.background": palette["background"],
+            "tab.foreground": palette["dark_foreground"],
+            "tab_bar.background": palette["darker_background"],
+            "title_bar.background": palette["dark_background"],
+            "base.blue": palette["blue"],
+            "base.cyan": palette["cyan"],
+            "base.green": palette["green"],
+            "base.magenta": palette["magenta"],
+            "base.red": palette["red"],
+            "base.yellow": palette["yellow"],
+        }
+        for key, value in expected.items():
+            with self.subTest(key=key):
+                self.assertEqual(value.lower(), colors[key].lower())
+
+    def test_translucent_colors_are_tinted_by_the_surface_they_sit_on(self):
+        palette = load_palette("macos-classic-dark")
+        colors = self.theme()["colors"]
+        self.assertEqual(
+            palette["background"].lower() + "00", colors["scrollbar.background"].lower()
+        )
+        self.assertTrue(
+            colors["list.active.background"].lower().startswith(palette["accent"].lower()),
+            "a selected row is the accent dimmed, not a separate color",
+        )
+
+    def test_every_color_is_a_hex_value(self):
+        for key, value in self.theme()["colors"].items():
+            with self.subTest(key=key):
+                self.assertRegex(value, r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
+
+    def test_text_stays_readable_on_its_own_surface(self):
+        colors = self.theme()["colors"]
+        pairs = [
+            ("foreground", "background"),
+            ("accent.foreground", "accent.background"),
+            ("popover.foreground", "popover.background"),
+            ("secondary.foreground", "secondary.background"),
+            ("muted.foreground", "muted.background"),
+            ("tab.foreground", "tab_bar.background"),
+        ]
+        for foreground, background in pairs:
+            with self.subTest(foreground=foreground):
+                self.assertGreaterEqual(
+                    contrast_ratio(colors[foreground], colors[background]), 4.5
+                )
+        # The accent pair comes straight from colors.toml, and white-on-blue
+        # lands at 3.7. Buttons are UI components, so 3:1 is the bar they meet.
+        self.assertGreaterEqual(
+            contrast_ratio(colors["primary.foreground"], colors["primary.background"]), 3.0
+        )
+
+    def test_the_theme_is_not_part_of_the_omarchy_theme_itself(self):
+        # Omarchy never reads this file; only install.sh does. Keeping it out of
+        # THEME_FILES keeps it out of ~/.config/omarchy/themes.
+        self.assertNotIn("longbridge.json", THEME_FILES)
+        self.assertFalse((theme_dir("macos-classic-light") / "longbridge.json").exists())
 
 
 class AssetTests(unittest.TestCase):
@@ -496,7 +670,7 @@ class AssetTests(unittest.TestCase):
     def test_assets_have_expected_png_dimensions(self):
         for name in VARIANTS:
             expected = {
-                theme_dir(name) /"backgrounds" / f"{name}.png": (1920, 1080),
+                theme_dir(name) / "backgrounds" / f"{name}.png": (1920, 1080),
                 theme_dir(name) /"unlock.png": (1920, 1080),
                 theme_dir(name) /"preview.png": (640, 360),
                 theme_dir(name) /"preview-unlock.png": (640, 360),
@@ -505,49 +679,100 @@ class AssetTests(unittest.TestCase):
                 with self.subTest(path=path):
                     self.assertEqual(dimensions, self.png_dimensions(path))
 
-    def test_wallpaper_is_a_flat_fill_with_no_artwork(self):
-        # There is no wallpaper image on purpose: every pixel is the same color,
-        # so the desktop is blank rather than a picture.
-        expected = {
-            "macos-classic-light": (216, 216, 216),
-            "macos-classic-dark": (5, 5, 5),
-        }
-        for name, fill in expected.items():
-            with self.subTest(name=name):
-                path = theme_dir(name) / "backgrounds" / f"{name}.png"
-                self.assertEqual(fill, self.png_corner_rgb(path))
-                self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
-                self.assertEqual({fill}, set(self.png_pixels(path)))
+    def test_dark_theme_uses_a_flat_080808_background(self):
+        backgrounds = theme_dir("macos-classic-dark") / "backgrounds"
+        self.assertEqual(
+            ["macos-classic-dark.png"],
+            sorted(path.name for path in backgrounds.iterdir()),
+        )
+        path = backgrounds / "macos-classic-dark.png"
+        fill = (8, 8, 8)
+        self.assertEqual(fill, self.png_corner_rgb(path))
+        self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
+        self.assertEqual({fill}, set(self.png_pixels(path)))
 
-    def test_wallpaper_sits_below_every_palette_surface(self):
+    def test_light_wallpaper_remains_a_flat_fill(self):
+        path = theme_dir("macos-classic-light") / "backgrounds/macos-classic-light.png"
+        fill = (216, 216, 216)
+        self.assertEqual(fill, self.png_corner_rgb(path))
+        self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
+        self.assertEqual({fill}, set(self.png_pixels(path)))
+
+    def test_dark_login_assets_use_the_flat_080808_background(self):
+        theme = theme_dir("macos-classic-dark")
+        paths = (
+            theme / "unlock.png",
+            theme / "preview.png",
+            theme / "preview-unlock.png",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertEqual({(8, 8, 8)}, set(self.png_pixels(path)))
+
+    def test_committed_assets_match_the_generator_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            generated_root = Path(temporary)
+            generated_script = generated_root / "scripts/generate_assets.py"
+            generated_script.parent.mkdir()
+            shutil.copy(ROOT / "scripts/generate_assets.py", generated_script)
+
+            result = subprocess.run(
+                [sys.executable, generated_script],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+
+            for name in VARIANTS:
+                generated_theme = (
+                    generated_root / "macos-classic-light"
+                    if name == "macos-classic-light"
+                    else generated_root
+                )
+                relative_paths = [
+                    Path("backgrounds") / f"{name}.png",
+                    Path("unlock.png"),
+                    Path("preview-unlock.png"),
+                ]
+                if name == "macos-classic-dark":
+                    relative_paths.append(Path("preview.png"))
+                for relative_path in relative_paths:
+                    with self.subTest(name=name, path=relative_path):
+                        self.assertEqual(
+                            (theme_dir(name) / relative_path).read_bytes(),
+                            (generated_theme / relative_path).read_bytes(),
+                        )
+
+    def test_light_wallpaper_sits_below_every_palette_surface(self):
         # The desktop is darker than the editor background so windows read as
         # raised off it instead of melting into it.
-        for name in VARIANTS:
-            with self.subTest(name=name):
-                path = theme_dir(name) / "backgrounds" / f"{name}.png"
-                fill = "#%02X%02X%02X" % self.png_corner_rgb(path)
-                palette = load_palette(name)
-                for key in ("background", "dark_background", "darker_background", "lighter_background"):
-                    self.assertLess(
-                        relative_luminance(fill),
-                        relative_luminance(palette[key]),
-                        f"{name} wallpaper must be darker than {key}",
-                    )
+        name = "macos-classic-light"
+        path = theme_dir(name) / "backgrounds" / f"{name}.png"
+        fill = "#%02X%02X%02X" % self.png_corner_rgb(path)
+        palette = load_palette(name)
+        for key in ("background", "dark_background", "darker_background", "lighter_background"):
+            self.assertLess(
+                relative_luminance(fill),
+                relative_luminance(palette[key]),
+                f"{name} wallpaper must be darker than {key}",
+            )
 
 
 class InstallerTests(unittest.TestCase):
     def run_installer(self, *arguments, env=None, activate=False):
         # Activation is the installer's default, so every test that is not about
         # activation opts out: otherwise the suite would switch the theme of the
-        # machine it runs on.
+        # machine it runs on. Both destinations default to somewhere under $HOME,
+        # so point HOME at a throwaway directory for the same reason.
         prefix = () if activate else ("--no-activate",)
-        return subprocess.run(
-            ["bash", ROOT / "install.sh", *prefix, *map(str, arguments)],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        with tempfile.TemporaryDirectory() as home:
+            return subprocess.run(
+                ["bash", ROOT / "install.sh", *prefix, *map(str, arguments)],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                env=(env or os.environ) | {"HOME": home},
+            )
 
     def stub_omarchy(self, temporary):
         bin_dir = Path(temporary) / "bin"
@@ -604,6 +829,41 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             for marker in markers:
                 self.assertFalse(marker.exists())
+
+    def test_installer_copies_the_longbridge_theme_where_the_app_reads_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            longbridge = Path(temporary) / ".longbridge"
+            longbridge.mkdir()
+
+            result = self.run_installer(
+                "--destination",
+                destination,
+                "--longbridge-destination",
+                longbridge / "themes",
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+
+            installed = longbridge / "themes" / LONGBRIDGE_INSTALLED_NAME
+            self.assertEqual(
+                json.loads((ROOT / "longbridge.json").read_text()),
+                json.loads(installed.read_text()),
+            )
+            self.assertIn("Longbridge", result.stdout)
+
+    def test_installer_leaves_a_machine_without_longbridge_alone(self):
+        # ~/.longbridge appears the first time the app runs. Without it there is
+        # nothing to theme, and the installer must not conjure the directory.
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "themes"
+            longbridge = Path(temporary) / "absent" / "themes"
+
+            result = self.run_installer(
+                "--destination", destination, "--longbridge-destination", longbridge
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(longbridge.parent.exists())
+            self.assertIn("Longbridge is not set up", result.stdout)
 
     def test_unknown_argument_fails_without_copying(self):
         with tempfile.TemporaryDirectory() as temporary:

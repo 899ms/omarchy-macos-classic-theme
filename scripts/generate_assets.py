@@ -12,10 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # repo straight into ~/.config/omarchy/themes/<name>, so it only ever sees one
 # theme, built from the files at the top level.
 #
-# There is no wallpaper artwork on purpose: the desktop is a single flat fill so
-# it disappears behind the windows the way the classic desktop did instead of
-# reading as a picture. The fill sits one step below every palette surface, so
-# windows read as raised off the desktop rather than melting into it.
+# Both variants ship a flat background rather than artwork, leaving wallpaper
+# choice to the user. Each fill sits below the theme's window surfaces.
 THEMES = {
     "macos-classic-light": {
         "directory": ROOT / "macos-classic-light",
@@ -23,7 +21,7 @@ THEMES = {
     },
     "macos-classic-dark": {
         "directory": ROOT,
-        "color": "#050505",
+        "color": "#080808",
     },
 }
 
@@ -51,10 +49,10 @@ def render_png(path, width, height, colors):
 def main():
     for name, colors in THEMES.items():
         theme = colors["directory"]
-        # preview.png is a hand-captured screenshot of the desktop, not a
-        # generated fill, so it is deliberately absent here.
         render_png(theme / "backgrounds" / f"{name}.png", 1920, 1080, colors)
         render_png(theme / "unlock.png", 1920, 1080, colors)
+        if name == "macos-classic-dark":
+            render_png(theme / "preview.png", 640, 360, colors)
         render_png(theme / "preview-unlock.png", 640, 360, colors)
 
 

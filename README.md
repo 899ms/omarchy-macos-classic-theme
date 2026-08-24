@@ -1,8 +1,8 @@
 # macOS Classic for Omarchy
 
-An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors and a blank desktop that sits a shade below every window surface.
+An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors plus plain desktop and login backgrounds, leaving wallpaper choice to the user.
 
-<img width="3840" height="2160" alt="screenshot-2026-08-16_16-53-45" src="https://github.com/user-attachments/assets/828e801b-2a15-4220-ad6d-b46f565a65d6" />
+<img width="3840" height="2160" alt="screenshot-2026-08-16_16-53-45" src="https://github.com/user-attachments/assets/c572a09f-cb1b-46f1-84f0-9ec3751f868e" />
 
 ## Install
 
@@ -37,6 +37,14 @@ Each variant includes a Slack custom theme that you can import manually:
    [`macos-classic-light/slack.theme`](macos-classic-light/slack.theme) for light mode, then apply it.
 
 Slack stores custom themes per user rather than reading them from Omarchy, so changing Omarchy themes does not switch Slack automatically.
+
+## Longbridge
+
+[`longbridge.json`](longbridge.json) is the dark palette as a Longbridge desktop theme. `install.sh` copies it to `~/.longbridge/themes/omarchy.json`, and the app hot-reloads its themes, so no restart is needed — pick **Omarchy System** in the theme selector.
+
+Only the dark variant is included. The installed file is named `omarchy.json` rather than after this theme, so any other Omarchy theme shipping one overwrites the same file: the selector keeps a single **Omarchy System** entry instead of collecting one per theme.
+
+If the app has never run, `~/.longbridge` does not exist yet and the installer skips this step; run Longbridge once, then run `./install.sh` again.
 
 ## Credits
 
