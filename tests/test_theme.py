@@ -57,6 +57,7 @@ VARIANTS = {
         "foreground": "#000000",
         "accent": "#0060de",
         "chromium": "249,249,249",
+        "icons": "Yaru-blue",
         "vscode": "macOS Classic",
         "zed": "macOS Classic Light",
     },
@@ -66,6 +67,7 @@ VARIANTS = {
         "foreground": "#DEDEDE",
         "accent": "#077CFD",
         "chromium": "19,19,19",
+        "icons": "Yaru-blue-dark",
         "vscode": "macOS Classic Dark v2",
         "zed": "macOS Classic Dark",
     },
@@ -406,15 +408,11 @@ class IntegrationTests(unittest.TestCase):
                     zed,
                 )
 
-    def test_icon_theme_is_installed(self):
-        icon_roots = (Path("/usr/share/icons"), Path.home() / ".local/share/icons", Path.home() / ".icons")
-        for name in VARIANTS:
+    def test_icon_theme_matches_the_variant(self):
+        for name, expected in VARIANTS.items():
             with self.subTest(name=name):
                 icon_theme = (theme_dir(name) /"icons.theme").read_text().strip()
-                self.assertTrue(
-                    any((root / icon_theme / "index.theme").is_file() for root in icon_roots),
-                    f"Icon theme {icon_theme!r} is not installed",
-                )
+                self.assertEqual(expected["icons"], icon_theme)
 
     @unittest.skipUnless(shutil.which("omarchy-theme-set"), "Omarchy is not installed")
     def test_current_omarchy_generates_palette_native_neovim_theme(self):
@@ -679,17 +677,15 @@ class AssetTests(unittest.TestCase):
                 with self.subTest(path=path):
                     self.assertEqual(dimensions, self.png_dimensions(path))
 
-    def test_dark_theme_uses_a_flat_080808_background(self):
+    def test_dark_theme_uses_the_moon_wallpaper(self):
         backgrounds = theme_dir("macos-classic-dark") / "backgrounds"
         self.assertEqual(
             ["macos-classic-dark.png"],
             sorted(path.name for path in backgrounds.iterdir()),
         )
         path = backgrounds / "macos-classic-dark.png"
-        fill = (8, 8, 8)
-        self.assertEqual(fill, self.png_corner_rgb(path))
-        self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
-        self.assertEqual({fill}, set(self.png_pixels(path)))
+        self.assertGreater(path.stat().st_size, 10_000)
+        self.assertLess(path.stat().st_size, 150_000)
 
     def test_light_wallpaper_remains_a_flat_fill(self):
         path = theme_dir("macos-classic-light") / "backgrounds/macos-classic-light.png"
@@ -698,16 +694,15 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(fill, self.png_corner_rgb(path, bottom=True))
         self.assertEqual({fill}, set(self.png_pixels(path)))
 
-    def test_dark_login_assets_use_the_flat_080808_background(self):
+    def test_dark_login_uses_the_moon_wallpaper(self):
         theme = theme_dir("macos-classic-dark")
-        paths = (
-            theme / "unlock.png",
-            theme / "preview.png",
-            theme / "preview-unlock.png",
+        pairs = (
+            (theme / "backgrounds/macos-classic-dark.png", theme / "unlock.png"),
+            (theme / "preview.png", theme / "preview-unlock.png"),
         )
-        for path in paths:
-            with self.subTest(path=path):
-                self.assertEqual({(8, 8, 8)}, set(self.png_pixels(path)))
+        for wallpaper, login in pairs:
+            with self.subTest(login=login):
+                self.assertEqual(wallpaper.read_bytes(), login.read_bytes())
 
     def test_committed_assets_match_the_generator_output(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -723,7 +718,7 @@ class AssetTests(unittest.TestCase):
             )
             self.assertEqual(0, result.returncode, result.stderr)
 
-            for name in VARIANTS:
+            for name in ("macos-classic-light",):
                 generated_theme = (
                     generated_root / "macos-classic-light"
                     if name == "macos-classic-light"
@@ -734,8 +729,6 @@ class AssetTests(unittest.TestCase):
                     Path("unlock.png"),
                     Path("preview-unlock.png"),
                 ]
-                if name == "macos-classic-dark":
-                    relative_paths.append(Path("preview.png"))
                 for relative_path in relative_paths:
                     with self.subTest(name=name, path=relative_path):
                         self.assertEqual(

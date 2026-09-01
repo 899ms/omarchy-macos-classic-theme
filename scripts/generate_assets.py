@@ -12,8 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # repo straight into ~/.config/omarchy/themes/<name>, so it only ever sees one
 # theme, built from the files at the top level.
 #
-# Both variants ship a flat background rather than artwork, leaving wallpaper
-# choice to the user. Each fill sits below the theme's window surfaces.
+# The light variant ships generated flat assets. The dark variant's committed
+# moon artwork is shared by its desktop and login assets and must survive this
+# deterministic regeneration utility.
 THEMES = {
     "macos-classic-light": {
         "directory": ROOT / "macos-classic-light",
@@ -49,11 +50,10 @@ def render_png(path, width, height, colors):
 def main():
     for name, colors in THEMES.items():
         theme = colors["directory"]
-        render_png(theme / "backgrounds" / f"{name}.png", 1920, 1080, colors)
-        render_png(theme / "unlock.png", 1920, 1080, colors)
-        if name == "macos-classic-dark":
-            render_png(theme / "preview.png", 640, 360, colors)
-        render_png(theme / "preview-unlock.png", 640, 360, colors)
+        if name == "macos-classic-light":
+            render_png(theme / "backgrounds" / f"{name}.png", 1920, 1080, colors)
+            render_png(theme / "unlock.png", 1920, 1080, colors)
+            render_png(theme / "preview-unlock.png", 640, 360, colors)
 
 
 if __name__ == "__main__":

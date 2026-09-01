@@ -1,6 +1,6 @@
 # macOS Classic for Omarchy
 
-An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors plus plain desktop and login backgrounds, leaving wallpaper choice to the user.
+An Omarchy theme based on Jason Lee's macOS Classic palette — near-black surfaces, cool gray text, and bright blue accents. Includes application colors and a detailed dark pixel-art moon scene shared by the desktop and login screen.
 
 <img width="3840" height="2160" alt="screenshot-2026-08-16_16-53-45" src="https://github.com/user-attachments/assets/c572a09f-cb1b-46f1-84f0-9ec3751f868e" />
 
